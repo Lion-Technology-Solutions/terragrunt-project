@@ -1,38 +1,98 @@
-name: Deploy ec2 using Terragrunt
+name: Terragrunt Pipeline
 
 on:
   push:
     branches:
       - master
+      - testing 
   pull_request:
     branches:
       - master
 
 jobs:
-  deploy:
+  validate:
+    name: Validate Terragrunt Configuration
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Set up terragrunt
-        uses: hashicorp/setup-terragrunt@v2
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          terragrunt_version: 1.5.0
+          terraform_version: 1.5.0
 
-      - name: Configure AWS credentials
+      - name: Set up Terragrunt
+        run: |
+          wget https://github.com/gruntwork-io/terragrunt/releases/download/v0.50.0/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v3
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-      - name: Terragrunt Init
-        run: terragrunt init
+      - name: Validate Terragrunt Configuration
+        run: terragrunt validate-all
+
+  plan:
+    name: Plan Terragrunt Changes
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Set up Terragrunt
+        run: |
+          wget https://github.com/gruntwork-io/terragrunt/releases/download/v0.50.0/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Terragrunt Plan
-        run: terragrunt plan
+        run: terragrunt plan-all
 
-      # - name: terragrunt Apply
-      #   run: terragrunt apply -auto-approve
+  apply:
+    name: Apply Terragrunt Changes
+    runs-on: ubuntu-latest
+    needs: plan
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Set up Terragrunt
+        run: |
+          wget https://github.com/gruntwork-io/terragrunt/releases/download/v0.50.0/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      # - name: Terragrunt Apply
+      #   run: terragrunt apply-all --auto-approve
